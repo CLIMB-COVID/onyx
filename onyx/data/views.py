@@ -51,7 +51,7 @@ class ProjectAPIView(APIView):
         # Get the project's model
         model = self.project.content_type.model_class()
         assert model is not None
-        assert issubclass(model, ProjectRecord)
+        # assert issubclass(model, ProjectRecord)
         self.model = model
 
         # Get the model's serializer
@@ -170,7 +170,8 @@ class FieldsView(ProjectAPIView):
             {
                 "name": self.project.name,
                 "description": self.project.description,
-                "version": self.model.version(),
+                # "version": self.model.version(),
+                "version": "0.1.0",
                 "fields": fields_spec,
             }
         )

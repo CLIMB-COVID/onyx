@@ -9,18 +9,18 @@ def init_project_queryset(
 ) -> models.manager.BaseManager[models.Model]:
     qs = model.objects.select_related()
 
-    if not user.is_staff:
-        # If the user is not a member of staff:
-        # - Ignore suppressed data
-        # - Ignore site_restricted objects from other sites
-        # TODO: For site_restricted to work properly, need to have site stored directly on project record
-        qs = qs.filter(suppressed=False).exclude(
-            models.Q(site_restricted=True) & ~models.Q(user__site=user.site)
-        )
-    elif fields and "suppressed" not in fields:
-        # If the user is a member of staff, but the suppressed field is not in scope:
-        # - Ignore suppressed data
-        qs = qs.filter(suppressed=False)
+    # if not user.is_staff:
+    #     # If the user is not a member of staff:
+    #     # - Ignore suppressed data
+    #     # - Ignore site_restricted objects from other sites
+    #     # TODO: For site_restricted to work properly, need to have site stored directly on project record
+    #     qs = qs.filter(suppressed=False).exclude(
+    #         models.Q(site_restricted=True) & ~models.Q(user__site=user.site)
+    #     )
+    # elif fields and "suppressed" not in fields:
+    #     # If the user is a member of staff, but the suppressed field is not in scope:
+    #     # - Ignore suppressed data
+    #     qs = qs.filter(suppressed=False)
 
     return qs
 

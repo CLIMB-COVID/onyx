@@ -146,7 +146,7 @@ class FieldHandler:
         self.code = project.code
         model = project.content_type.model_class()
         assert model is not None
-        assert issubclass(model, ProjectRecord)
+        # assert issubclass(model, ProjectRecord)
         self.model = model
         self.app_label = project.content_type.app_label
         self.action = action

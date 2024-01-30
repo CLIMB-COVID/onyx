@@ -3,6 +3,7 @@ import importlib, inspect
 from django.db.models import Model
 from . import projects
 from .serializers import ProjectRecordSerializer, SerializerNode, SummarySerializer
+from .serializers import BaseRecordSerializer
 
 
 class ProjectSerializerMap:
@@ -37,7 +38,7 @@ for module_info in pkgutil.iter_modules(
     # - The member has a Meta.model attribute
     predicate = (
         lambda x: inspect.isclass(x)
-        and issubclass(x, ProjectRecordSerializer)
+        and issubclass(x, BaseRecordSerializer)
         and hasattr(x.Meta, "model")
     )
 
