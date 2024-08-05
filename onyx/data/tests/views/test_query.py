@@ -25,10 +25,9 @@ class TestQueryView(OnyxDataTestCase):
         Test basic retrieval of all records.
         """
 
-        response = self.client.post(self.endpoint)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = self.client_handle_paginated("POST", self.endpoint)
         self.assertEqualClimbIDs(
-            response.json()["data"],
+            data,
             TestModel.objects.all(),
         )
 
@@ -154,11 +153,8 @@ class TestQueryView(OnyxDataTestCase):
         ]
 
         for query, expected in queries:
-            response = self.client.post(self.endpoint, data=query)
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertEqualClimbIDs(
-                response.json()["data"], TestModel.objects.filter(expected)
-            )
+            data = self.client_handle_paginated("POST", self.endpoint, data=query)
+            self.assertEqualClimbIDs(data, TestModel.objects.filter(expected))
 
     def test_empty_value(self):
         """
@@ -176,17 +172,19 @@ class TestQueryView(OnyxDataTestCase):
                 "concern",  # bool
             ]:
                 # Equal to empty
-                response = self.client.post(self.endpoint, data={field: empty})
-                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                data = self.client_handle_paginated(
+                    "POST", self.endpoint, data={field: empty}
+                )
                 self.assertEqualClimbIDs(
-                    response.json()["data"],
+                    data,
                     TestModel.objects.filter(**{f"{field}__isnull": True}),
                 )
 
                 # Not equal to empty
-                response = self.client.post(self.endpoint, data={"~": {field: empty}})
-                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                data = self.client_handle_paginated(
+                    "POST", self.endpoint, data={"~": {field: empty}}
+                )
                 self.assertEqualClimbIDs(
-                    response.json()["data"],
+                    data,
                     TestModel.objects.filter(**{f"{field}__isnull": False}),
                 )

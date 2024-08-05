@@ -5,6 +5,7 @@ from django.core.management import call_command
 from django.conf import settings
 from django.contrib.auth.models import Group
 from rest_framework.test import APITestCase
+from rest_framework import status
 from accounts.models import User, Site
 from ..models import Project
 from projects.testproject.models import TestModel, TestModelRecord
@@ -382,3 +383,25 @@ class OnyxDataTestCase(OnyxTestCase):
                     nested_record["test_end"] += "-01"
 
                 TestModelRecord.objects.create(**nested_record)
+
+    def client_handle_paginated(self, method, *args, **kwargs):
+        if method.upper() == "GET":
+            function = self.client.get
+        elif method.upper() == "POST":
+            function = self.client.post
+        else:
+            raise ValueError(f"Unsupported method: {method}")
+
+        response = function(*args, **kwargs)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.json().get("data")
+        _next = response.json().get("next")
+
+        while _next is not None:
+            response = function(_next, *args[1:], **kwargs)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            data.extend(response.json().get("data"))
+            _next = response.json().get("next")
+
+        return data

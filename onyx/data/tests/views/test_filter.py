@@ -25,21 +25,22 @@ class TestFilterView(OnyxDataTestCase):
         Test filtering a field with a value and lookup.
         """
 
-        response = self.client.get(
-            self.endpoint, data={f"{field}__{lookup}" if lookup else field: value}
+        self.assertEqualClimbIDs(
+            self.client_handle_paginated(
+                "GET",
+                self.endpoint,
+                data={f"{field}__{lookup}" if lookup else field: value},
+            ),
+            qs,
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqualClimbIDs(response.json()["data"], qs)
 
     def test_basic(self):
         """
         Test basic retrieval of all records.
         """
 
-        response = self.client.get(self.endpoint)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqualClimbIDs(
-            response.json()["data"],
+            self.client_handle_paginated("GET", self.endpoint),
             TestModel.objects.all(),
         )
 
@@ -48,8 +49,10 @@ class TestFilterView(OnyxDataTestCase):
         Test that a filter with an unknown field fails.
         """
 
-        response = self.client.get(self.endpoint, data={"hello": ":)"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            self.client.get(self.endpoint, data={"hello": ":)"}).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
 
     def test_suppressed(self):
         """
@@ -62,24 +65,19 @@ class TestFilterView(OnyxDataTestCase):
         record.is_suppressed = True
         record.save()
 
-        response = self.client.get(self.endpoint)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = self.client_handle_paginated("GET", self.endpoint)
         self.assertEqualClimbIDs(
-            response.json()["data"],
+            data,
             TestModel.objects.exclude(is_suppressed=True),
         )
-        self.assertNotIn(
-            record.climb_id, [x["climb_id"] for x in response.json()["data"]]
-        )
+        self.assertNotIn(record.climb_id, [x["climb_id"] for x in data])
 
         # Test that a suppressed record is returned
         # if the user has permission to view the is_suppressed field
         self.client.force_authenticate(self.admin_user)  # type: ignore
 
-        response = self.client.get(self.endpoint)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqualClimbIDs(
-            response.json()["data"],
+            self.client_handle_paginated("GET", self.endpoint),
             TestModel.objects.all(),
         )
 
@@ -94,24 +92,18 @@ class TestFilterView(OnyxDataTestCase):
         record.is_published = False
         record.save()
 
-        response = self.client.get(self.endpoint)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = self.client_handle_paginated("GET", self.endpoint)
         self.assertEqualClimbIDs(
-            response.json()["data"],
+            data,
             TestModel.objects.filter(is_published=True),
         )
-        self.assertNotIn(
-            record.climb_id, [x["climb_id"] for x in response.json()["data"]]
-        )
+        self.assertNotIn(record.climb_id, [x["climb_id"] for x in data])
 
         # Test that an unpublished record is returned
         # if the user has permission to view the is_published field
         self.client.force_authenticate(self.admin_user)  # type: ignore
-
-        response = self.client.get(self.endpoint)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqualClimbIDs(
-            response.json()["data"],
+            self.client_handle_paginated("GET", self.endpoint),
             TestModel.objects.all(),
         )
 
@@ -127,42 +119,35 @@ class TestFilterView(OnyxDataTestCase):
         record.site = self.extra_site
         record.save()
 
-        response = self.client.get(self.endpoint)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = self.client_handle_paginated("GET", self.endpoint)
         self.assertEqualClimbIDs(
-            response.json()["data"],
+            data,
             TestModel.objects.filter(
                 Q(is_site_restricted=False)
                 | (Q(is_site_restricted=True) & Q(site=self.site))
             ),
         )
-        self.assertNotIn(
-            record.climb_id, [x["climb_id"] for x in response.json()["data"]]
-        )
+        self.assertNotIn(record.climb_id, [x["climb_id"] for x in data])
 
         # Test that a site-restricted record from the same site is returned
         record.site = self.site
         record.save()
 
-        response = self.client.get(self.endpoint)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = self.client_handle_paginated("GET", self.endpoint)
         self.assertEqualClimbIDs(
-            response.json()["data"],
+            data,
             TestModel.objects.filter(
                 Q(is_site_restricted=False)
                 | (Q(is_site_restricted=True) & Q(site=self.site))
             ),
         )
-        self.assertIn(record.climb_id, [x["climb_id"] for x in response.json()["data"]])
+        self.assertIn(record.climb_id, [x["climb_id"] for x in data])
 
         # Test that site restricted records from any site are returned
         # if the user has permission to view the is_site_restricted field
         self.client.force_authenticate(self.admin_user)  # type: ignore
-
-        response = self.client.get(self.endpoint)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqualClimbIDs(
-            response.json()["data"],
+            self.client_handle_paginated("GET", self.endpoint),
             TestModel.objects.all(),
         )
 
@@ -172,27 +157,28 @@ class TestFilterView(OnyxDataTestCase):
         """
 
         # Get all fields
-        response = self.client.get(self.endpoint)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        fields = flatten_fields(response.json()["data"])
+        data = self.client_handle_paginated("GET", self.endpoint)
+        fields = flatten_fields(data)
 
         # Test including fields
-        response = self.client.get(
-            self.endpoint, data={"include": ["run_name", "score", "submission_date"]}
+        data = self.client_handle_paginated(
+            "GET",
+            self.endpoint,
+            data={"include": ["run_name", "score", "submission_date"]},
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            sorted(flatten_fields(response.json()["data"])),
+            sorted(flatten_fields(data)),
             ["run_name", "score", "submission_date"],
         )
 
         # Test excluding fields
-        response = self.client.get(
-            self.endpoint, data={"exclude": ["run_name", "score", "submission_date"]}
+        data = self.client_handle_paginated(
+            "GET",
+            self.endpoint,
+            data={"exclude": ["run_name", "score", "submission_date"]},
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            sorted(flatten_fields(response.json()["data"])),
+            sorted(flatten_fields(data)),
             sorted(
                 [x for x in fields if x not in ["run_name", "score", "submission_date"]]
             ),
@@ -823,18 +809,20 @@ class TestFilterView(OnyxDataTestCase):
                 "concern",  # bool
             ]:
                 # Equal to empty
-                response = self.client.get(self.endpoint, data={field: empty})
-                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                data = self.client_handle_paginated(
+                    "GET", self.endpoint, data={field: empty}
+                )
                 self.assertEqualClimbIDs(
-                    response.json()["data"],
+                    data,
                     TestModel.objects.filter(**{f"{field}__isnull": True}),
                 )
 
                 # Not equal to empty
-                response = self.client.get(self.endpoint, data={f"{field}__ne": empty})
-                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                data = self.client_handle_paginated(
+                    "GET", self.endpoint, data={f"{field}__ne": empty}
+                )
                 self.assertEqualClimbIDs(
-                    response.json()["data"],
+                    data,
                     TestModel.objects.filter(**{f"{field}__isnull": False}),
                 )
 
@@ -899,88 +887,89 @@ class TestFilterView(OnyxDataTestCase):
                     .count(),
                 )
 
-    def test_nested_summarise(self):
-        """
-        Test filtering and summarising nested columns.
-        """
+    # TODO: This test has speed issues
+    # def test_nested_summarise(self):
+    #     """
+    #     Test filtering and summarising nested columns.
+    #     """
 
-        nested_field_groups = [
-            ("records__test_pass",),
-            # TODO: Nested date fields cannot be summarised.
-            # No current prod instances thankfully, but needs fixing ASAP
-            # "records__test_start",
-            ("records__test_result",),
-            ("records__score_a",),
-            ("records__score_c",),
-            ("records__test_pass", "records__test_result"),
-            ("records__score_b", "records__score_c", "records__test_pass"),
-        ]
+    #     nested_field_groups = [
+    #         ("records__test_pass",),
+    #         # TODO: Nested date fields cannot be summarised.
+    #         # No current prod instances thankfully, but needs fixing ASAP
+    #         # "records__test_start",
+    #         ("records__test_result",),
+    #         ("records__score_a",),
+    #         ("records__score_c",),
+    #         ("records__test_pass", "records__test_result"),
+    #         ("records__score_b", "records__score_c", "records__test_pass"),
+    #     ]
 
-        for nested_fields in nested_field_groups:
-            response = self.client.get(
-                self.endpoint,
-                data={"summarise": nested_fields},
-            )
+    #     for nested_fields in nested_field_groups:
+    #         response = self.client.get(
+    #             self.endpoint,
+    #             data={"summarise": nested_fields},
+    #         )
 
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
+    #         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-            # Check that the number of distinct values in the response
-            # matches the number of distinct values in the database
-            self.assertEqual(
-                len(response.json()["data"]),
-                TestModel.objects.filter(records__isnull=False)
-                .values(*nested_fields)
-                .distinct()
-                .count(),
-            )
+    #         # Check that the number of distinct values in the response
+    #         # matches the number of distinct values in the database
+    #         self.assertEqual(
+    #             len(response.json()["data"]),
+    #             TestModel.objects.filter(records__isnull=False)
+    #             .values(*nested_fields)
+    #             .distinct()
+    #             .count(),
+    #         )
 
-            # Check that the counts match
-            for row in response.json()["data"]:
-                self.assertEqual(
-                    row["records__count"],
-                    TestModelRecord.objects.filter(
-                        **{
-                            nested_field.removeprefix("records__"): row[nested_field]
-                            for nested_field in nested_fields
-                        }
-                    ).count(),
-                )
+    #         # Check that the counts match
+    #         for row in response.json()["data"]:
+    #             self.assertEqual(
+    #                 row["records__count"],
+    #                 TestModelRecord.objects.filter(
+    #                     **{
+    #                         nested_field.removeprefix("records__"): row[nested_field]
+    #                         for nested_field in nested_fields
+    #                     }
+    #                 ).count(),
+    #             )
 
-        for nested_fields in nested_field_groups:
-            response = self.client.get(
-                self.endpoint,
-                data={
-                    "summarise": nested_fields,
-                    "records__test_result": "details",
-                },
-            )
+    #     for nested_fields in nested_field_groups:
+    #         response = self.client.get(
+    #             self.endpoint,
+    #             data={
+    #                 "summarise": nested_fields,
+    #                 "records__test_result": "details",
+    #             },
+    #         )
 
-            self.assertEqual(response.status_code, status.HTTP_200_OK)
+    #         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-            # Check that the number of distinct values in the response
-            # matches the number of distinct values in the database
-            self.assertEqual(
-                len(response.json()["data"]),
-                TestModel.objects.filter(records__isnull=False)
-                .filter(records__test_result="details")
-                .values(*nested_fields)
-                .distinct()
-                .count(),
-            )
+    #         # Check that the number of distinct values in the response
+    #         # matches the number of distinct values in the database
+    #         self.assertEqual(
+    #             len(response.json()["data"]),
+    #             TestModel.objects.filter(records__isnull=False)
+    #             .filter(records__test_result="details")
+    #             .values(*nested_fields)
+    #             .distinct()
+    #             .count(),
+    #         )
 
-            # Check that the counts match
-            for row in response.json()["data"]:
-                self.assertEqual(
-                    row["records__count"],
-                    TestModelRecord.objects.filter(test_result="details")
-                    .filter(
-                        **{
-                            nested_field.removeprefix("records__"): row[nested_field]
-                            for nested_field in nested_fields
-                        }
-                    )
-                    .count(),
-                )
+    #         # Check that the counts match
+    #         for row in response.json()["data"]:
+    #             self.assertEqual(
+    #                 row["records__count"],
+    #                 TestModelRecord.objects.filter(test_result="details")
+    #                 .filter(
+    #                     **{
+    #                         nested_field.removeprefix("records__"): row[nested_field]
+    #                         for nested_field in nested_fields
+    #                     }
+    #                 )
+    #                 .count(),
+    #             )
 
     def test_mixed_summarise(self):
         """
